@@ -115,6 +115,7 @@ class SemanticSegmentationPipeline:
                                                   transform=transform, batch_size=self.val_batch_size,
                                                   shuffle=False, seed=self.seed)
 
+        # TODO : implement model
         model = UNet()  # Initialize your model
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.SGD(model.parameters(), lr=0.01,
