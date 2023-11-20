@@ -5,7 +5,7 @@ import torchvision.models as models
 
 
 def make_layers():
-    mobilenet = models.mobilenet_v2(pretrained=True)
+    mobilenet = models.mobilenet_v3_small(pretrained=True)
     features = list(mobilenet.features.children())
     classifier = list(mobilenet.classifier.children())
 
@@ -13,10 +13,10 @@ def make_layers():
     conv1 = nn.Sequential(features[0])
 
     # inverted residuals
-    conv2 = nn.Sequential(features[1], features[2], features[3], features[4])
-    conv3 = nn.Sequential(features[5], features[6], features[7], features[8])
-    conv4 = nn.Sequential(features[9], features[10], features[11], features[12])
-    conv5 = nn.Sequential(features[13], features[14], features[15], features[16], features[17])
+    conv2 = nn.Sequential(features[1], features[2], features[3])
+    conv3 = nn.Sequential(features[4], features[5], features[6])
+    conv4 = nn.Sequential(features[7], features[8], features[9])
+    conv5 = nn.Sequential(features[10], features[11])
 
     # Todo : There is a 18th layer at index 19 (conv2D,Batchnorm, Relu) that is not an inverted residual  but i'm not sure i should use it
 
@@ -33,24 +33,13 @@ def make_layers():
     return [conv1, conv2, conv3, conv4, conv5, conv6, conv7]
 
 
-class SimpleNN(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size):
-        super(SimpleNN, self).__init__()
-        self.fc1 = nn.Linear(input_size, hidden_size)
-        self.fc2 = nn.Linear(hidden_size, output_size)
-
-    def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = self.fc2(x)
-        return x
-
-
 class DeconvMobileNet(nn.Module): # Code from source github
     def __init__(self, num_classes, init_weights):
         super(DeconvMobileNet, self).__init__()
 
         layers = make_layers() # instead of VGG16, we put MobilenetV2
 
+        # Todo : adapt with the right dimensions for unpooling
         self.conv1 = layers[0]
         self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2, padding=0, return_indices=True)
 
@@ -66,6 +55,8 @@ class DeconvMobileNet(nn.Module): # Code from source github
         self.conv5 = layers[4]
         self.pool5 = nn.MaxPool2d(kernel_size=2, stride=2, padding=0, return_indices=True)
 
+
+        # Todo : do conv67 and all the unpool
         self.conv67 = nn.Sequential(layers[5], nn.BatchNorm2d(4096), nn.ReLU(),
                                     layers[6], nn.BatchNorm2d(4096), nn.ReLU())
 
