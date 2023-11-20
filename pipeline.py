@@ -28,13 +28,14 @@ class UNet(nn.Module):
 
 
 class SemanticSegmentationTrainer:
-    def __init__(self, model, train_loader, val_loader, criterion, optimizer, num_epochs=10, log_dir='logs'):
+    def __init__(self, model, train_loader, val_loader, criterion, optimizer, num_epochs=10, patience=5, log_dir='logs'):
         self.model = model
         self.train_loader = train_loader
         self.val_loader = val_loader
         self.criterion = criterion
         self.optimizer = optimizer
         self.num_epochs = num_epochs
+        self.patience = patience
         self.logger = logging.getLogger(__name__)
         logging.basicConfig(level=logging.INFO)
         self.log_dir = log_dir
@@ -42,6 +43,9 @@ class SemanticSegmentationTrainer:
         # Create the log directory if it doesn't exist
         if not os.path.exists(self.log_dir):
             os.makedirs(self.log_dir)
+
+        self.early_stopping_counter = 0
+        self.best_val_loss = float('inf')
 
     def save_checkpoint(self, epoch, model_state, optimizer_state, train_loss, val_loss):
         checkpoint = {
@@ -55,6 +59,15 @@ class SemanticSegmentationTrainer:
             self.log_dir, f'checkpoint_epoch_{epoch}.pt')
         torch.save(checkpoint, checkpoint_path)
         self.logger.info(f"Checkpoint saved at epoch {epoch}")
+
+    def early_stopping(self, val_loss):
+        if val_loss < self.best_val_loss:
+            self.best_val_loss = val_loss
+            self.early_stopping_counter = 0
+        else:
+            self.early_stopping_counter += 1
+
+        return self.early_stopping_counter >= self.patience
 
     def train(self):
         for epoch in range(self.num_epochs):
@@ -86,6 +99,12 @@ class SemanticSegmentationTrainer:
             avg_val_loss = total_val_loss / len(self.val_loader.loader)
             self.logger.info(
                 f'Validation Loss at epoch {epoch}: {avg_val_loss}')
+
+            # Early stopping check
+            if self.early_stopping(avg_val_loss):
+                self.logger.info(
+                    f'Early stopping at epoch {epoch} due to no improvement in validation loss.')
+                break
 
             # Save checkpoint
             self.save_checkpoint(epoch, self.model.state_dict(
