@@ -1,96 +1,121 @@
-### Code inspired from https://github.com/Jasonlee1995/DeconvNet/blob/main/Implementation/model.py
+import torch
+import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
 
 
-def make_layers():
-    mobilenet = models.mobilenet_v3_small(pretrained=True)
-    features = list(mobilenet.features.children())
-    classifier = list(mobilenet.classifier.children())
-
-    # first conv
-    conv1 = nn.Sequential(features[0])
-
-    # inverted residuals
-    conv2 = nn.Sequential(features[1], features[2], features[3])
-    conv3 = nn.Sequential(features[4], features[5], features[6])
-    conv4 = nn.Sequential(features[7], features[8], features[9])
-    conv5 = nn.Sequential(features[10], features[11])
-
-    # Todo : There is a 18th layer at index 19 (conv2D,Batchnorm, Relu) that is not an inverted residual  but i'm not sure i should use it
-
-    conv6 = nn.Conv2d(320, 4096, kernel_size=(7, 7)) #modify the 512 original channels to match conv5 output (320)
-    conv7 = nn.Conv2d(4096, 4096, kernel_size=(1, 1))
-
-    # Todo : Need to replace these because there is no Linear into
-    w_conv6 = classifier[0].state_dict()
-    w_conv7 = classifier[3].state_dict()
-
-    conv6.load_state_dict({'weight': w_conv6['weight'].view(4096, 512, 7, 7), 'bias': w_conv6['bias']})
-    conv7.load_state_dict({'weight': w_conv7['weight'].view(4096, 4096, 1, 1), 'bias': w_conv7['bias']})
-
-    return [conv1, conv2, conv3, conv4, conv5, conv6, conv7]
-
-
-class DeconvMobileNet(nn.Module): # Code from source github
+class DeconvMobileNet(nn.Module):
     def __init__(self, num_classes, init_weights):
         super(DeconvMobileNet, self).__init__()
 
-        layers = make_layers() # instead of VGG16, we put MobilenetV2
+        mobilenet = models.mobilenet_v3_small(pretrained=True)
+        features = list(mobilenet.features.children())
+        classifier = list(mobilenet.classifier.children())
 
-        # Todo : adapt with the right dimensions for unpooling
-        self.conv1 = layers[0]
-        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2, padding=0, return_indices=True)
+        # Extracting layers from MobileNetV3
+        self.conv1 = nn.Sequential(features[0])
+        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=1, padding=0, return_indices=True)# stride 1 instead of 2
 
-        self.conv2 = layers[1]
-        self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2, padding=0, return_indices=True)
+        self.conv2 = nn.Sequential(features[1], features[2], features[3])
+        self.pool2 = nn.MaxPool2d(kernel_size=2, stride=1, padding=0, return_indices=True)# stride 1 instead of 2
 
-        self.conv3 = layers[2]
-        self.pool3 = nn.MaxPool2d(kernel_size=2, stride=2, padding=0, return_indices=True)
+        self.conv3 = nn.Sequential(features[4], features[5], features[6])
+        self.pool3 = nn.MaxPool2d(kernel_size=2, stride=1, padding=0, return_indices=True)# stride 1 instead of 2
 
-        self.conv4 = layers[3]
-        self.pool4 = nn.MaxPool2d(kernel_size=2, stride=2, padding=0, return_indices=True)
+        self.conv4 = nn.Sequential(features[7], features[8], features[9])
+        self.pool4 = nn.MaxPool2d(kernel_size=2, stride=1, padding=0, return_indices=True) # stride 1 instead of 2
 
-        self.conv5 = layers[4]
-        self.pool5 = nn.MaxPool2d(kernel_size=2, stride=2, padding=0, return_indices=True)
+        self.conv5 = nn.Sequential(features[10], features[11], features[12])
+        self.pool5 = nn.MaxPool2d(kernel_size=2, stride=1, padding=0, return_indices=True) # stride 1 instead of 2
 
+        # Conv67 layer
+        self.conv67 = nn.Sequential(
+            nn.Conv2d(576, 1024, kernel_size=(1, 1)),
+            nn.BatchNorm2d(1024),
+            nn.ReLU(),
+            nn.Conv2d(1024, 1000, kernel_size=(1, 1)),
+            nn.BatchNorm2d(1000),
+            nn.ReLU()
+        )
 
-        # Todo : do conv67 and all the unpool
-        self.conv67 = nn.Sequential(layers[5], nn.BatchNorm2d(4096), nn.ReLU(),
-                                    layers[6], nn.BatchNorm2d(4096), nn.ReLU())
+        # Load weights for conv6 and conv7
+        w_conv6 = classifier[0].state_dict()
+        w_conv7 = classifier[3].state_dict()
 
-        self.deconv67 = nn.Sequential(nn.ConvTranspose2d(4096, 512, kernel_size=7, stride=1, padding=0),
-                                      nn.BatchNorm2d(512), nn.ReLU())
+        new_input_channels_conv6 = 96
+        w_conv6_adjusted = w_conv6['weight'].unsqueeze(2).unsqueeze(3)  # .view(1024, 576, 1, 1)
+        self.conv67[0].weight.data.copy_(w_conv6_adjusted)
+        self.conv67[0].bias.data.copy_(w_conv6['bias'])
+        self.conv67[3].weight.data.copy_(w_conv7['weight'].view(1000, 1024, 1, 1))
+        self.conv67[3].bias.data.copy_(w_conv7['bias'])
+
+        # Define deconvolution layers
+        self.deconv67 = nn.Sequential(
+            nn.ConvTranspose2d(1000, 1024, kernel_size=7, stride=1, padding=0),  # Mirrors conv67
+            nn.BatchNorm2d(1024),
+            nn.ReLU()
+        )
 
         self.unpool5 = nn.MaxUnpool2d(kernel_size=2, stride=2)
         self.deconv5 = nn.Sequential(
-            nn.ConvTranspose2d(512, 512, kernel_size=3, stride=1, padding=1), nn.BatchNorm2d(512), nn.ReLU(),
-            nn.ConvTranspose2d(512, 512, kernel_size=3, stride=1, padding=1), nn.BatchNorm2d(512), nn.ReLU(),
-            nn.ConvTranspose2d(512, 512, kernel_size=3, stride=1, padding=1), nn.BatchNorm2d(512), nn.ReLU())
+            nn.ConvTranspose2d(1024, 576, kernel_size=3, stride=1, padding=1),  # Mirrors conv5
+            nn.BatchNorm2d(512),
+            nn.ReLU(),
+            nn.ConvTranspose2d(576, 576, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(512),
+            nn.ReLU(),
+            nn.ConvTranspose2d(576, 96, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(512),
+            nn.ReLU()
+        )
 
         self.unpool4 = nn.MaxUnpool2d(kernel_size=2, stride=2)
         self.deconv4 = nn.Sequential(
-            nn.ConvTranspose2d(512, 512, kernel_size=3, stride=1, padding=1), nn.BatchNorm2d(512), nn.ReLU(),
-            nn.ConvTranspose2d(512, 512, kernel_size=3, stride=1, padding=1), nn.BatchNorm2d(512), nn.ReLU(),
-            nn.ConvTranspose2d(512, 256, kernel_size=3, stride=1, padding=1), nn.BatchNorm2d(256), nn.ReLU())
+            nn.ConvTranspose2d(512, 512, kernel_size=3, stride=1, padding=1),  # Mirrors conv4
+            nn.BatchNorm2d(512),
+            nn.ReLU(),
+            nn.ConvTranspose2d(512, 512, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(512),
+            nn.ReLU(),
+            nn.ConvTranspose2d(512, 256, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(256),
+            nn.ReLU()
+        )
 
         self.unpool3 = nn.MaxUnpool2d(kernel_size=2, stride=2)
         self.deconv3 = nn.Sequential(
-            nn.ConvTranspose2d(256, 256, kernel_size=3, stride=1, padding=1), nn.BatchNorm2d(256), nn.ReLU(),
-            nn.ConvTranspose2d(256, 256, kernel_size=3, stride=1, padding=1), nn.BatchNorm2d(256), nn.ReLU(),
-            nn.ConvTranspose2d(256, 128, kernel_size=3, stride=1, padding=1), nn.BatchNorm2d(128), nn.ReLU())
+            nn.ConvTranspose2d(256, 256, kernel_size=3, stride=1, padding=1),  # Mirrors conv3
+            nn.BatchNorm2d(256),
+            nn.ReLU(),
+            nn.ConvTranspose2d(256, 256, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(256),
+            nn.ReLU(),
+            nn.ConvTranspose2d(256, 128, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU()
+        )
 
         self.unpool2 = nn.MaxUnpool2d(kernel_size=2, stride=2)
         self.deconv2 = nn.Sequential(
-            nn.ConvTranspose2d(128, 128, kernel_size=3, stride=1, padding=1), nn.BatchNorm2d(128), nn.ReLU(),
-            nn.ConvTranspose2d(128, 64, kernel_size=3, stride=1, padding=1), nn.BatchNorm2d(64), nn.ReLU())
+            nn.ConvTranspose2d(128, 128, kernel_size=3, stride=1, padding=1),  # Mirrors conv2
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+            nn.ConvTranspose2d(128, 64, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU()
+        )
 
         self.unpool1 = nn.MaxUnpool2d(kernel_size=2, stride=2)
         self.deconv1 = nn.Sequential(
-            nn.ConvTranspose2d(64, 64, kernel_size=3, stride=1, padding=1), nn.BatchNorm2d(64), nn.ReLU(),
-            nn.ConvTranspose2d(64, 64, kernel_size=3, stride=1, padding=1), nn.BatchNorm2d(64), nn.ReLU(),
-            nn.ConvTranspose2d(64, num_classes, kernel_size=1, stride=1, padding=0))
+            nn.ConvTranspose2d(64, 64, kernel_size=3, stride=1, padding=1),  # Mirrors conv1
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.ConvTranspose2d(64, 64, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.ConvTranspose2d(64, num_classes, kernel_size=1, stride=1, padding=0)
+        )
 
         if init_weights:
             self._initialize_weights()
@@ -136,7 +161,7 @@ class DeconvMobileNet(nn.Module): # Code from source github
     def _initialize_weights(self):
         targets = [self.conv67, self.deconv67, self.deconv5, self.deconv4, self.deconv3, self.deconv2, self.deconv1]
         for layer in targets:
-            for module in layer:
+            for module in layer.children():
                 if isinstance(module, nn.BatchNorm2d):
                     nn.init.constant_(module.weight, 1)
                     nn.init.constant_(module.bias, 0)
@@ -146,6 +171,16 @@ class DeconvMobileNet(nn.Module): # Code from source github
                         nn.init.constant_(module.bias, 0)
 
 
-deconv = DeconvMobileNet(num_classes=30, init_weights=True)
+if __name__ == '__main__':
+    # Instantiate the model
+    num_classes = 10  # You can change this based on your actual number of classes
+    model = DeconvMobileNet(num_classes=num_classes, init_weights=True)
 
-a=2
+    # Generate random input data (batch size = 1, channels = 3, height = 224, width = 224)
+    input_data = torch.randn((1, 3, 224, 224))
+
+    # Forward pass
+    output = model(input_data)
+
+    # Print the output shape
+    print("Output Shape:", output.shape)
