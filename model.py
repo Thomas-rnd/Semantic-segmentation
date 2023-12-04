@@ -15,7 +15,7 @@ class DeconvMobileNet(nn.Module):
 
         # Extracting layers from MobileNetV3
         self.conv1 = nn.Sequential(features[0])
-        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=1, padding=0, return_indices=True)# stride 1 instead of 2
+        self.pool1 = nn.MaxPool2d(kernel_size=1, stride=1, padding=0, return_indices=True)# stride 1 instead of 2
 
         self.conv2 = nn.Sequential(features[1], features[2], features[3])
         self.pool2 = nn.MaxPool2d(kernel_size=2, stride=1, padding=0, return_indices=True)# stride 1 instead of 2
@@ -52,7 +52,7 @@ class DeconvMobileNet(nn.Module):
 
         # Define deconvolution layers
         self.deconv67 = nn.Sequential(
-            nn.ConvTranspose2d(1000, 1024, kernel_size=7, stride=1, padding=0),  # Mirrors conv67
+            nn.ConvTranspose2d(1000, 1024, kernel_size=7, stride=1, padding=3),  # Mirrors conv67
             nn.BatchNorm2d(1024),
             nn.ReLU()
         )
@@ -60,61 +60,61 @@ class DeconvMobileNet(nn.Module):
         self.unpool5 = nn.MaxUnpool2d(kernel_size=2, stride=2)
         self.deconv5 = nn.Sequential(
             nn.ConvTranspose2d(1024, 576, kernel_size=3, stride=1, padding=1),  # Mirrors conv5
-            nn.BatchNorm2d(512),
+            nn.BatchNorm2d(576),
             nn.ReLU(),
             nn.ConvTranspose2d(576, 576, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(512),
+            nn.BatchNorm2d(576),
             nn.ReLU(),
             nn.ConvTranspose2d(576, 96, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(512),
+            nn.BatchNorm2d(96),
             nn.ReLU()
         )
 
         self.unpool4 = nn.MaxUnpool2d(kernel_size=2, stride=2)
         self.deconv4 = nn.Sequential(
-            nn.ConvTranspose2d(512, 512, kernel_size=3, stride=1, padding=1),  # Mirrors conv4
-            nn.BatchNorm2d(512),
+            nn.ConvTranspose2d(96, 96, kernel_size=3, stride=1, padding=1),  # Mirrors conv4
+            nn.BatchNorm2d(96),
             nn.ReLU(),
-            nn.ConvTranspose2d(512, 512, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(512),
+            nn.ConvTranspose2d(96, 96, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(96),
             nn.ReLU(),
-            nn.ConvTranspose2d(512, 256, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(256),
+            nn.ConvTranspose2d(96, 40, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(40),
             nn.ReLU()
         )
 
         self.unpool3 = nn.MaxUnpool2d(kernel_size=2, stride=2)
         self.deconv3 = nn.Sequential(
-            nn.ConvTranspose2d(256, 256, kernel_size=3, stride=1, padding=1),  # Mirrors conv3
-            nn.BatchNorm2d(256),
+            nn.ConvTranspose2d(40, 40, kernel_size=3, stride=1, padding=1),  # Mirrors conv3
+            nn.BatchNorm2d(40),
             nn.ReLU(),
-            nn.ConvTranspose2d(256, 256, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(256),
+            nn.ConvTranspose2d(40, 40, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(40),
             nn.ReLU(),
-            nn.ConvTranspose2d(256, 128, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(128),
+            nn.ConvTranspose2d(40, 24, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(24),
             nn.ReLU()
         )
 
         self.unpool2 = nn.MaxUnpool2d(kernel_size=2, stride=2)
         self.deconv2 = nn.Sequential(
-            nn.ConvTranspose2d(128, 128, kernel_size=3, stride=1, padding=1),  # Mirrors conv2
-            nn.BatchNorm2d(128),
+            nn.ConvTranspose2d(24, 24, kernel_size=3, stride=1, padding=1),  # Mirrors conv2
+            nn.BatchNorm2d(24),
             nn.ReLU(),
-            nn.ConvTranspose2d(128, 64, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(64),
+            nn.ConvTranspose2d(24, 16, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(16),
             nn.ReLU()
         )
 
         self.unpool1 = nn.MaxUnpool2d(kernel_size=2, stride=2)
         self.deconv1 = nn.Sequential(
-            nn.ConvTranspose2d(64, 64, kernel_size=3, stride=1, padding=1),  # Mirrors conv1
-            nn.BatchNorm2d(64),
+            nn.ConvTranspose2d(16, 16, kernel_size=3, stride=1, padding=1),  # Mirrors conv1
+            nn.BatchNorm2d(16),
             nn.ReLU(),
-            nn.ConvTranspose2d(64, 64, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(64),
+            nn.ConvTranspose2d(16, 16, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(16),
             nn.ReLU(),
-            nn.ConvTranspose2d(64, num_classes, kernel_size=1, stride=1, padding=0)
+            nn.ConvTranspose2d(16, num_classes, kernel_size=1, stride=1, padding=0)
         )
 
         if init_weights:
@@ -124,36 +124,41 @@ class DeconvMobileNet(nn.Module):
         original = x
 
         x = self.conv1(x)
-        x, p1 = self.pool1(x)
+        # x, p1 = self.pool1(x)
 
         x = self.conv2(x)
-        x, p2 = self.pool2(x)
+        # x, p2 = self.pool2(x)
 
         x = self.conv3(x)
-        x, p3 = self.pool3(x)
+        # x, p3 = self.pool3(x)
 
         x = self.conv4(x)
-        x, p4 = self.pool4(x)
+        # x, p4 = self.pool4(x)
 
         x = self.conv5(x)
-        x, p5 = self.pool5(x)
+        # x, p5 = self.pool5(x)
 
         x = self.conv67(x)
         x = self.deconv67(x)
 
-        x = self.unpool5(x, p5)
+        # x = self.unpool5(x)
+        x = F.interpolate(x, scale_factor=2, mode='nearest')
         x = self.deconv5(x)
 
-        x = self.unpool4(x, p4)
+        # x = self.unpool4(x, p4)
+        x = F.interpolate(x, scale_factor=2, mode='nearest')
         x = self.deconv4(x)
 
-        x = self.unpool3(x, p3)
+        # x = self.unpool3(x, p3)
+        x = F.interpolate(x, scale_factor=2, mode='nearest')
         x = self.deconv3(x)
 
-        x = self.unpool2(x, p2)
+        # x = self.unpool2(x, p2)
+        x = F.interpolate(x, scale_factor=2, mode='nearest')
         x = self.deconv2(x)
 
-        x = self.unpool1(x, p1)
+        # x = self.unpool1(x, p1)
+        x = F.interpolate(x, scale_factor=2, mode='nearest')
         x = self.deconv1(x)
 
         return x
