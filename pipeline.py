@@ -9,6 +9,7 @@ import logging
 import os
 import wandb
 
+
 class SemanticSegmentationDataset:
     def __init__(self, root, year, image_set, transform=None, batch_size=64, shuffle=True, seed=42):
         random.seed(seed)
@@ -19,6 +20,32 @@ class SemanticSegmentationDataset:
             root=root, year=year, image_set=image_set, download=True, transform=transform)
         self.loader = DataLoader(
             self.dataset, batch_size=batch_size, shuffle=shuffle)
+
+    def __getitem__(self, idx):
+        # Get the image and segmentation mask at the given index
+        img, mask = self.dataset[idx]
+        # Apply any additional transformations if needed
+        if self.dataset.transform is not None:
+            img, mask = self.dataset.transform(img, mask)
+        return img, mask
+
+    def plot(self, model):
+        # Use DataLoader to get a batch
+        data_iterator = iter(self.loader)
+        img, mask = next(data_iterator)
+        prediction = model(img)
+        # Display the image, ground truth mask, and predicted mask
+        plt.figure(figsize=(12, 4))
+        plt.subplot(1, 3, 1)
+        plt.imshow(img[0].permute(1, 2, 0))  # Assuming img is a PyTorch tensor
+        plt.title('Image')
+        plt.subplot(1, 3, 2)
+        plt.imshow(mask[0])  # Assuming mask is a PyTorch tensor
+        plt.title('Ground Truth Mask')
+        plt.subplot(1, 3, 3)
+        plt.imshow(prediction[0])  # Assuming prediction is a PyTorch tensor
+        plt.title('Predicted Mask')
+        plt.show()
 
 
 class UNet(nn.Module):
@@ -114,7 +141,8 @@ class SemanticSegmentationTrainer:
             ), self.optimizer.state_dict(), avg_loss, avg_val_loss)
 
     def log_to_wandb(self, epoch, train_loss, val_loss):
-        wandb.log({"epoch": epoch, "train_loss": train_loss, "val_loss": val_loss})
+        wandb.log(
+            {"epoch": epoch, "train_loss": train_loss, "val_loss": val_loss})
 
 
 class SemanticSegmentationPipeline:
@@ -159,8 +187,6 @@ class SemanticSegmentationPipeline:
         trainer = SemanticSegmentationTrainer(
             model, train_dataset, val_dataset, criterion, optimizer, self.num_epochs, self.log_dir)
         trainer.train()
-
-
 
 
 if __name__ == "__main__":
