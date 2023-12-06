@@ -7,7 +7,7 @@ from torchvision.datasets import VOCSegmentation
 import random
 import logging
 import os
-
+import wandb
 
 class SemanticSegmentationDataset:
     def __init__(self, root, year, image_set, transform=None, batch_size=64, shuffle=True, seed=42):
@@ -100,6 +100,9 @@ class SemanticSegmentationTrainer:
             self.logger.info(
                 f'Validation Loss at epoch {epoch}: {avg_val_loss}')
 
+            # log on w and b
+            self.log_to_wandb(epoch, avg_loss, avg_val_loss)
+
             # Early stopping check
             if self.early_stopping(avg_val_loss):
                 self.logger.info(
@@ -109,6 +112,9 @@ class SemanticSegmentationTrainer:
             # Save checkpoint
             self.save_checkpoint(epoch, self.model.state_dict(
             ), self.optimizer.state_dict(), avg_loss, avg_val_loss)
+
+    def log_to_wandb(self, epoch, train_loss, val_loss):
+        wandb.log({"epoch": epoch, "train_loss": train_loss, "val_loss": val_loss})
 
 
 class SemanticSegmentationPipeline:
@@ -122,6 +128,16 @@ class SemanticSegmentationPipeline:
         self.log_dir = log_dir
 
     def run(self):
+        wandb.init()
+        wandb.config.update({
+            "root": self.root,
+            "year": self.year,
+            "train_batch_size": self.train_batch_size,
+            "val_batch_size": self.val_batch_size,
+            "num_epochs": self.num_epochs,
+            "seed": self.seed,
+            "log_dir": self.log_dir
+        })
         transform = transforms.Compose([
             transforms.Resize((224, 224, 3)),
             transforms.ToTensor(),
@@ -145,6 +161,10 @@ class SemanticSegmentationPipeline:
         trainer.train()
 
 
+
+
 if __name__ == "__main__":
+    wandb.init(project='semantic-segmentation')
     pipeline = SemanticSegmentationPipeline()
     pipeline.run()
+    wandb.finish()
