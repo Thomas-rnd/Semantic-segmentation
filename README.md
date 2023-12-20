@@ -8,10 +8,10 @@ Semantic segmentation is an important part of computer vision research, and sinc
 
 ### Features
 
-1. Model Training: Train semantic segmentation models on custom datasets.
-2. Model Checkpointing: Save model and optimizer checkpoints during training.
-3. Early Stopping: Implement early stopping based on Mean Intersection over Union (mIoU) loss.
-4. Logging with WandB: Log training progress, losses, and mIoU to Weights & Biases for easy monitoring.
+1. **Model Training:** Train semantic segmentation models on custom datasets.
+2. **Model Checkpointing:** Save model and optimizer checkpoints during training.
+3. **Early Stopping:** Implement early stopping based on Mean Intersection over Union (mIoU) loss.
+4. **Logging with WandB:** Log training progress, losses, and mIoU to Weights & Biases for easy monitoring.
 
 ### Dataset
 
