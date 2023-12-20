@@ -15,8 +15,8 @@ Semantic segmentation is an important part of computer vision research, and sinc
 
 ### Dataset
 
-![dataset](https://github.com/Thomas-rnd/Semantic-segmentation/img/dataset.png)
+![dataset](https://github.com/Thomas-rnd/Semantic-segmentation/blob/main/img/dataset.png)
 
 ### Results
 
-![result](https://github.com/Thomas-rnd/Semantic-segmentation/img/result.png.png)
+![result](https://github.com/Thomas-rnd/Semantic-segmentation/blob/main/img/result.png)
